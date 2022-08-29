@@ -28,6 +28,8 @@ public:
 
 private:
     std::unique_ptr<ASTImpl::Expr> root_expr_;
+	// Все используемые ячейки в формуле
+	std::forward_list<Position> cells_;
 };
 
 FormulaAST ParseFormulaAST(std::istream& in);
