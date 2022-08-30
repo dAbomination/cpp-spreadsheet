@@ -272,15 +272,16 @@ namespace ASTImpl {
                 if (std::holds_alternative<FormulaError>(result)) {
                     throw std::get<FormulaError>(result);
                 }
-                if (std::holds_alternative<std::string>(result) && std::get<std::string>(result).empty()) {
-                    return 0.0;
-                }
-                else if (std::holds_alternative<std::string>(result)) {
-                    throw FormulaError(FormulaError::Category::Value);
-                }
-                else {
-                    return std::get<double>(result);
-                }                
+                if (std::holds_alternative<std::string>(result)) {
+                    // Если строка пустая 0 то ноль
+                    if (std::get<std::string>(result).empty()) {
+                        return 0.0;
+                    }
+                    else {
+                        throw FormulaError(FormulaError::Category::Value);
+                    }                    
+                }          
+                return std::get<double>(result);                               
             }
 
         private:

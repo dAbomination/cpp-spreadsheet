@@ -56,18 +56,12 @@ namespace CellImpl {
 
 	// --------------------------------------------------------------------
 	template <class T>
-	inline void hash_combine(std::size_t& s, const T& v)
-	{
+	inline void hash_combine(std::size_t& s, const T& v) {
 		std::hash<T> h;
 		s ^= h(v) + 0x9e3779b9 + (s << 6) + (s >> 2);
 	}
 
-	template <class T>
-	class MyHash;
-
-	template<>
-	struct MyHash<Position>
-	{
+	struct PositionHash {	
 		std::size_t operator()(Position const& pos) const
 		{
 			std::size_t res = 0;
@@ -77,10 +71,9 @@ namespace CellImpl {
 		}
 	};
 	
-	bool FormulaImpl::CheckCircular(const std::vector<Position>& positions, SheetInterface& sheet) const {
-		std::unordered_set<Position, MyHash<Position>> checked_positions;
-
-		bool is_circular = false;
+	void FormulaImpl::CheckCircular(const std::vector<Position>& positions, SheetInterface& sheet) const {
+		std::unordered_set<Position, PositionHash> checked_positions;
+				
 		for (const auto& pos : positions) {
 			// Такую позицию ещё не проверяли
 			if (checked_positions.count(pos) == 0) {
@@ -91,16 +84,12 @@ namespace CellImpl {
 				}
 
 				if (pos == self_) {
-					return true;
+					throw CircularDependencyException("");
 				}
 				checked_positions.insert(pos);				
-				if (CheckCircular(temp_cell->GetReferencedCells(), sheet)) {
-					return true;
-				}
+				CheckCircular(temp_cell->GetReferencedCells(), sheet);
 			}			
 		}
-
-		return is_circular;
 	}
 
 	FormulaImpl::FormulaImpl(std::string_view str, SheetInterface& sheet, Position self)
@@ -132,9 +121,7 @@ namespace CellImpl {
 		}
 
 		// Проверям что нет цикличной зависимости
-		if (CheckCircular(GetReferencedCells(), sheet)) {
-			throw CircularDependencyException("");
-		}
+		CheckCircular(GetReferencedCells(), sheet);
 
 		if (valid_references) {
 			Evaluate(sheet);
@@ -142,21 +129,17 @@ namespace CellImpl {
 	}
 
 	CellInterface::Value FormulaImpl::GetValue() const {
-		if (std::holds_alternative<double>(value_.value())) {
-			return std::get<double>(value_.value());
-		}
-		else {
+		if (std::holds_alternative<FormulaError>(value_.value())) {
 			return std::get<FormulaError>(value_.value());
 		}
+		return std::get<double>(value_.value());		
 	}
 
 	std::vector<Position> FormulaImpl::GetReferencedCells() const {
-		if (formula_) {
-			return formula_->GetReferencedCells();
-		}
-		else {
+		if (!formula_) {
 			return {};
 		}
+		return formula_->GetReferencedCells();
 	}
 
 	void FormulaImpl::Evaluate(SheetInterface& sheet) {		
@@ -198,26 +181,27 @@ void Cell::Set(std::string text) {
 
 Cell::~Cell() {}
 
-void Cell::ReEvaluate() {
-	if (IsFormulaImpl()) {
-		static_cast<CellImpl::FormulaImpl*>(impl_.get())->Evaluate(sheet_);		
-	}
-	InvalidateReferringCells();
+void Cell::ReEvaluateReferringCells() {
 	for (const auto& pos : referring_cells_) {
 		auto temp_cell = static_cast<Cell*>(sheet_.GetCell(pos));
 		if (!temp_cell->IsValid()) {
 			temp_cell->ReEvaluate();
-		}		
+		}
 	}
 }
 
+void Cell::ReEvaluate() {
+	// Если это формульная ячейка, пересчитываем её, а затем
+	// пересчитываем все ячейки, которые зависят от текущей
+	if (IsFormulaImpl()) {
+		static_cast<CellImpl::FormulaImpl*>(impl_.get())->Evaluate(sheet_);		
+	}
+	InvalidateReferringCells();
+	ReEvaluateReferringCells();	
+}
+
 bool Cell::IsFormulaImpl() {
-	if (dynamic_cast<CellImpl::FormulaImpl*>(impl_.get())) {
-		return true;
-	}
-	else {
-		return false;
-	}
+	return dynamic_cast<CellImpl::FormulaImpl*>(impl_.get());
 }
 
 void Cell::Invalidate() {
@@ -262,7 +246,7 @@ std::vector<Position>& Cell::GetReferringCells() {
 }
 
 void Cell::Clear() {
-	impl_ = nullptr;
+	CreateImpl("");
 }
 
 CellInterface::Value Cell::GetValue() const {

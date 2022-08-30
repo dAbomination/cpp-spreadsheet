@@ -10,23 +10,12 @@
 
 using namespace std::literals;
 
-Sheet::~Sheet() {
-    // Удаляем все выделенные участки памяти
-    std::for_each(row_col_cell_.begin(),
-        row_col_cell_.end(),
-        [this](std::pair<const int, std::unordered_map<int, Cell*>>& row) {
-            std::for_each(row.second.begin(),
-                row.second.end(),
-                [](std::pair<const int, Cell*>& cell) {
-                    delete cell.second;
-            });
-    });
+Sheet::~Sheet() {    
 }
 
 bool Sheet::CheckCell(Position pos) const {
-    if (row_col_cell_.find(pos.row) != row_col_cell_.end() &&
-        row_col_cell_.at(pos.row).find(pos.col) != row_col_cell_.at(pos.row).end()) {
-        
+    auto row = row_col_cell_.find(pos.row);
+    if (row != row_col_cell_.end() && row->second.find(pos.col) != row->second.end()) {
         return true;
     }
     else {
@@ -47,8 +36,8 @@ void Sheet::SetCell(Position pos, std::string text) {
         static_cast<Cell*>(GetCell(pos))->Set(text);        
     }
     else {
-        Cell* new_cell = new Cell(text, *this, pos);
-        row_col_cell_[pos.row][pos.col] = new_cell;
+        auto new_cell_ptr = std::make_unique<Cell>(text, *this, pos);
+        row_col_cell_[pos.row][pos.col] = std::move(new_cell_ptr);
 
         // Если какой-либо размер новой ячейки больше печатной области, изменяем печатную область
         if (pos.col > printable_size_.cols) {
@@ -63,9 +52,9 @@ void Sheet::SetCell(Position pos, std::string text) {
 
 const CellInterface* Sheet::GetCell(Position pos) const {
     IsValidPos(pos);
-
+    
     if (CheckCell(pos)) {
-        return row_col_cell_.at(pos.row).at(pos.col);
+        return row_col_cell_.at(pos.row).at(pos.col).get();
     }
     else {
         return nullptr;
@@ -76,7 +65,7 @@ CellInterface* Sheet::GetCell(Position pos) {
     IsValidPos(pos);
 
     if (CheckCell(pos)) {
-        return row_col_cell_[pos.row][pos.col];
+        return row_col_cell_[pos.row][pos.col].get();
     }
     else {
         return nullptr;
@@ -120,9 +109,7 @@ void Sheet::ClearCell(Position pos) {
             );
             printable_size_.cols = max_col;
         }
-    }    
-
-    delete GetCell(pos);
+    } 
 }
 
 Size Sheet::GetPrintableSize() const {

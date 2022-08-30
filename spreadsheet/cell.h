@@ -53,7 +53,7 @@ namespace CellImpl {
         // Если значение есть значит ячейка валидна, при инвалидации¤ значение очищаетс¤
         std::optional<std::variant<double, FormulaError>> value_; 
 
-        bool CheckCircular(const std::vector<Position>& positions, SheetInterface& sheet) const;
+        void CheckCircular(const std::vector<Position>& positions, SheetInterface& sheet) const;
     };
 
 } // namespace CellImpl
@@ -74,8 +74,7 @@ public:
     std::vector<Position>& GetReferringCells();
     // Пересчитывает значение ячейки
     void ReEvaluate();
-
-    
+        
 private:
     SheetInterface& sheet_;
     Position self_; // Позиция ячейки в таблице
@@ -84,6 +83,8 @@ private:
     // Вектор ячеек в которых используется данная ячейка
     std::vector<Position> referring_cells_;
 
+    // Пересчёт ячеек, в которых используется данная ячейка
+    void ReEvaluateReferringCells();
     // Создаёт экземпляр Impl  в зависимости от text
     void CreateImpl(std::string_view text);
     // Инвалидирует все ячейки которые используют данную

@@ -24,7 +24,7 @@ public:
 
     
 private:
-    std::unordered_map<int, std::unordered_map<int, Cell*>> row_col_cell_;
+    std::unordered_map<int, std::unordered_map<int, std::unique_ptr<Cell>>> row_col_cell_;
     // -1, -1 значит что лист пуст(так как в программе координаты начинаются с 0, 0)
     Size printable_size_{-1, -1};
 
